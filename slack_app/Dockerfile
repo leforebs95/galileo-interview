@@ -1,14 +1,13 @@
 # Use AWS Lambda Python runtime
-FROM public.ecr.aws/lambda/python:3.12
-
-# Copy requirements and install dependencies
-COPY requirements.txt ${LAMBDA_TASK_ROOT}/
-RUN pip install --no-cache-dir -r requirements.txt
+FROM public.ecr.aws/lambda/python:3.13
 
 # Copy application code
-COPY app.py ${LAMBDA_TASK_ROOT}/
+COPY pyproject.toml ./
+COPY main.py ${LAMBDA_TASK_ROOT}/
 COPY listeners/ ${LAMBDA_TASK_ROOT}/listeners/
 COPY utils/ ${LAMBDA_TASK_ROOT}/utils/
 
-# Set the CMD to your handler (app.lambda_handler)
-CMD ["app.lambda_handler"]
+RUN pip install --no-cache-dir -e . --target ${LAMBDA_TASK_ROOT}
+
+# Set the CMD to your handler (main.lambda_handler)
+CMD ["main.lambda_handler"]

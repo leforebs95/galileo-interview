@@ -1,22 +1,20 @@
-import asyncio
 import logging
 import requests
-import aiohttp
 from slack_bolt import Say, Ack
 from slack_sdk import WebClient
-
-from langgraph_sdk import get_sync_client
+import os
 
 from dotenv import load_dotenv
 load_dotenv()
 
-AGENT_URL = "https://e4vjcxoltf.execute-api.us-west-1.amazonaws.com/dev"
+AGENT_URL = os.getenv("AGENT_URL")
 
 def create_agent_run(message:str):
     response = requests.post(
         f"{AGENT_URL}/invoke",
         json={"message": message}
     )
+    print(response)
     return response.json()["response"]
 
 def new_message_callback(ack: Ack, event: dict, say: Say, client: WebClient, logger: logging.Logger):
@@ -43,5 +41,4 @@ def new_message_callback(ack: Ack, event: dict, say: Say, client: WebClient, log
 
     agent_run = create_agent_run(message)
     logger.info(f"Agent run created: {agent_run}")
-    last_ai_message = [msg for msg in agent_run["messages"] if msg["type"] == "ai"][-1]
-    say(thread_ts=event.get("ts"), text=f"{last_ai_message['content']}")
+    say(thread_ts=event.get("ts"), text=f"{agent_run}")
