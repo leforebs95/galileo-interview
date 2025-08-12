@@ -86,6 +86,14 @@ class SecretsManager:
             logger.error("ANTHROPIC_API_KEY_SECRET_NAME environment variable not set")
             return None
         return self.get_secret_value_by_name(secret_name)
+    
+    def get_agent_url(self) -> Optional[str]:
+        """Get Agent URL from Secrets Manager"""
+        secret_name = os.environ.get('AGENT_URL_SECRET_NAME')
+        if not secret_name:
+            logger.error("AGENT_URL_SECRET_NAME environment variable not set")
+            return None
+        return self.get_secret_value_by_name(secret_name)
 
 # Global instance for easy access
 secrets_manager = SecretsManager()

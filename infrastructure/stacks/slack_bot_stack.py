@@ -92,6 +92,7 @@ class SlackBotStack(Stack):
                 "SLACK_BOT_TOKEN_SECRET_NAME": f"{self._environment}/slack-bot/slack-bot-token",
                 "SLACK_SIGNING_SECRET_SECRET_NAME": f"{self._environment}/slack-bot/slack-signing-secret", 
                 "ANTHROPIC_API_KEY_SECRET_NAME": f"{self._environment}/slack-bot/anthropic-api-key",
+                "AGENT_URL_SECRET_NAME": f"{self._environment}/slack-bot/agent-url",
             },
             # Removed log_group parameter
             reserved_concurrent_executions=10 if environment == "prod" else 5,
@@ -256,7 +257,8 @@ class SlackBotStack(Stack):
         secrets_config = {
             "SLACK_BOT_TOKEN": "slack-bot-token",
             "SLACK_SIGNING_SECRET": "slack-signing-secret", 
-            "ANTHROPIC_API_KEY": "anthropic-api-key"
+            "ANTHROPIC_API_KEY": "anthropic-api-key",
+            "AGENT_URL": "agent-url"
         }
         
         secrets = {}

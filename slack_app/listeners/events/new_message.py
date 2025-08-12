@@ -3,11 +3,14 @@ import requests
 from slack_bolt import Say, Ack
 from slack_sdk import WebClient
 import os
-
+from utils.secrets_manager import secrets_manager
 from dotenv import load_dotenv
 load_dotenv()
 
-AGENT_URL = os.getenv("AGENT_URL")
+if os.getenv("ENVIRONMENT") == "PROD":
+    AGENT_URL = secrets_manager.get_agent_url()
+else:
+    AGENT_URL = "http://localhost:2024"
 
 def create_agent_run(message:str):
     response = requests.post(
