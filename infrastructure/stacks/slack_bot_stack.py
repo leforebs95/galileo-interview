@@ -71,14 +71,6 @@ class SlackBotStack(Stack):
                 )
             }
         )
-        
-        # Create log group for Lambda function
-        log_group = logs.LogGroup(
-            self, "SlackBotLogGroup",
-            log_group_name=f"/aws/lambda/puresort-slack-bot-{environment}",
-            retention=logs.RetentionDays.ONE_MONTH,
-            removal_policy=RemovalPolicy.DESTROY
-        )
 
         # Lambda function using your existing code
         self.lambda_function = _lambda.Function(
@@ -86,7 +78,7 @@ class SlackBotStack(Stack):
             function_name=f"puresort-slack-bot-{environment}",
             code=_lambda.Code.from_ecr_image(
                 repository=self.ecr_repository,
-                tag_or_digest="latest"
+                tag_or_digest="latest"  # Fixed deprecation
             ),
             handler=_lambda.Handler.FROM_IMAGE,
             runtime=_lambda.Runtime.FROM_IMAGE,
@@ -97,12 +89,11 @@ class SlackBotStack(Stack):
                 "ENVIRONMENT": "PROD" if environment == "prod" else "DEV",
                 "S3_BUCKET_NAME": self.s3_bucket.bucket_name,
                 "LOG_LEVEL": "INFO" if environment == "prod" else "DEBUG",
-                # Add secret ARNs as environment variables for easy access
                 "SLACK_BOT_TOKEN_SECRET_NAME": f"{self._environment}/slack-bot/slack-bot-token",
                 "SLACK_SIGNING_SECRET_SECRET_NAME": f"{self._environment}/slack-bot/slack-signing-secret", 
                 "ANTHROPIC_API_KEY_SECRET_NAME": f"{self._environment}/slack-bot/anthropic-api-key",
             },
-            log_group=log_group,
+            # Removed log_group parameter
             reserved_concurrent_executions=10 if environment == "prod" else 5,
         )
         

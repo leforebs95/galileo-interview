@@ -144,29 +144,12 @@ class SlackBotDeployer:
         ], cwd=str(self.project_root))
     
     def update_lambda_function(self, ecr_uri: str, function_name: str):
-        """Update Lambda function with new image"""
+        """Update Lambda function with new container image"""
         print("Updating Lambda function to use container image...")
         
         try:
-            # First, update the function configuration to use Image package type
-            print("Updating function configuration for container image...")
-            self.run_command([
-                "aws", "lambda", "update-function-configuration",
-                "--function-name", function_name,
-                "--package-type", "Image",
-                "--code", f"ImageUri={ecr_uri}:latest"
-            ])
-            
-            # Wait for update to complete
-            print("Waiting for Lambda configuration update to complete...")
-            self.run_command([
-                "aws", "lambda", "wait", "function-updated",
-                "--function-name", function_name
-            ])
-            
-        except:
-            # If configuration update fails, try code update (function might already be Image type)
-            print("Configuration update failed, trying code update...")
+            # For container-based Lambda functions, we only need update-function-code
+            print("Updating Lambda function code with new container image...")
             self.run_command([
                 "aws", "lambda", "update-function-code",
                 "--function-name", function_name,
@@ -179,8 +162,21 @@ class SlackBotDeployer:
                 "aws", "lambda", "wait", "function-updated",
                 "--function-name", function_name
             ])
-        
-        print("✓ Lambda function updated successfully")
+            
+            print("✓ Lambda function updated successfully")
+            
+        except Exception as e:
+            print(f"Error updating Lambda function: {e}")
+            # Try to get more details about the function
+            try:
+                result = self.run_command([
+                    "aws", "lambda", "get-function",
+                    "--function-name", function_name
+                ])
+                print(f"Function details: {result.stdout}")
+            except:
+                pass
+            raise
     
     def create_placeholder_image_if_needed(self, ecr_uri: str):
         """Create a minimal placeholder image for Lambda if it doesn't exist"""

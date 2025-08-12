@@ -3,6 +3,7 @@ from aws_cdk import (
     Duration,
     RemovalPolicy,
     CfnOutput,
+    SecretValue,
     aws_lambda as _lambda,
     aws_ecr as ecr,
     aws_apigateway as apigw,
@@ -11,10 +12,17 @@ from aws_cdk import (
     aws_secretsmanager as secretsmanager,
 )
 from constructs import Construct
+import os
+import json
+from dotenv import load_dotenv
+
+load_dotenv()
 
 class SlackAgentStack(Stack):
     def __init__(self, scope: Construct, construct_id: str, environment: str = "dev", **kwargs) -> None:
         super().__init__(scope, construct_id, **kwargs)
+        
+        self._environment = environment
         
         # Reference existing ECR Repository
         self.ecr_repository = ecr.Repository.from_repository_name(
@@ -39,9 +47,8 @@ class SlackAgentStack(Stack):
                             effect=iam.Effect.ALLOW,
                             actions=[
                                 "secretsmanager:GetSecretValue",
-                                "secretsmanager:DescribeSecret"
                             ],
-                            resources=[secret.secret_arn for secret in self.secrets.values()]
+                            resources=[f"{secret.secret_arn}*" for secret in self.secrets.values()]
                         )
                     ]
                 )
@@ -70,7 +77,7 @@ class SlackAgentStack(Stack):
             environment={
                 "ENVIRONMENT": environment.upper(),
                 "LOG_LEVEL": "INFO" if environment == "prod" else "DEBUG",
-                "ANTHROPIC_API_KEY_SECRET_NAME": f"{environment}/slack-agent/anthropic-api-key",
+                "ANTHROPIC_API_KEY_SECRET_NAME": f"{self._environment}/slack-agent/anthropic-api-key",
             },
             log_group=log_group,
         )
@@ -197,35 +204,45 @@ class SlackAgentStack(Stack):
         
         return secrets
     
-    def _get_or_create_secret(self, env_var: str, secret_name: str):
-        """Get existing secret or create placeholder - helper method"""
-        full_secret_name = f"{self.environment}/{self.stack_name.lower().replace('stack', '').replace('slack', 'slack-')}/{secret_name}"
-        
+    def _secret_exists(self, secret_name: str) -> bool:
+        """Check if a secret actually exists in AWS Secrets Manager"""
         try:
-            # Try to import existing secret
-            print(f"Attempting to reference existing secret: {full_secret_name}")
-            secret = secretsmanager.Secret.from_secret_name_v2(
-                self, f"{env_var}Secret",
-                secret_name=full_secret_name
-            )
-            print(f"Successfully referenced existing secret: {full_secret_name}")
-            return secret
-            
+            print(f"Checking if secret exists: {secret_name}")
+            import boto3
+            secrets_client = boto3.client('secretsmanager')
+            secrets_client.describe_secret(SecretId=secret_name)
+            print(f"✓ Secret exists: {secret_name}")
+            return True
         except Exception as e:
-            # Create new secret if it doesn't exist
-            print(f"Secret {full_secret_name} not found, creating placeholder. Error: {str(e)}")
-            
-            secret = secretsmanager.Secret(
-                self, f"{env_var}Secret",
-                secret_name=full_secret_name,
-                description=f"{env_var} for Slack Agent",
-                generate_secret_string=secretsmanager.SecretStringGenerator(
-                    secret_string_template='{"api_key": ""}',
-                    generate_string_key="api_key",
-                    exclude_characters='" \\',
-                ),
-                removal_policy=RemovalPolicy.RETAIN  # Important: Don't delete secrets on stack deletion
+            if hasattr(e, 'response') and e.response.get('Error', {}).get('Code') == 'ResourceNotFoundException':
+                print(f"✗ Secret not found: {secret_name}")
+                return False
+            else:
+                print(f"Error checking secret existence for {secret_name}: {e}")
+                # If we can't determine, assume it doesn't exist and try to create
+                return False
+
+    def _get_or_create_secret(self, env_var: str, secret_name: str) -> secretsmanager.Secret:
+        """Get existing secret or create new one"""
+        secret_full_name = f"{self._environment}/slack-agent/{secret_name}"
+        if self._secret_exists(secret_full_name):
+            # Secret exists, create reference
+            return secretsmanager.Secret.from_secret_name_v2(
+                self, f"Existing{env_var.replace('_', '').title()}Secret",
+                secret_name=secret_full_name
             )
+        else:
+            # Secret doesn't exist, create it
+            local_value = os.environ.get(env_var)
+            if not local_value:
+                raise ValueError(f"Environment variable {env_var} is required for creating new secret")
             
-            print(f"Created new secret: {full_secret_name}")
-            return secret
+            return secretsmanager.Secret(
+                self, f"SlackAgent{env_var.replace('_', '').title()}Secret",
+                secret_name=secret_full_name,
+                description=f"Slack Agent {secret_name.replace('-', ' ').title()} for {self._environment} environment",
+                secret_string_value=SecretValue.unsafe_plain_text(
+                    json.dumps({"value": local_value})
+                ),
+                removal_policy=RemovalPolicy.RETAIN
+            )
