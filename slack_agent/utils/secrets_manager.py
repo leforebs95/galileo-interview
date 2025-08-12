@@ -21,8 +21,10 @@ class SecretsManager:
             # Parse the secret string
             secret_dict = json.loads(response['SecretString'])
             
-            # Handle different secret structures
-            if 'api_key' in secret_dict:
+            # Handle different secret structures - match slack_bot_stack pattern
+            if 'value' in secret_dict:
+                return secret_dict['value']
+            elif 'api_key' in secret_dict:
                 return secret_dict['api_key']
             elif len(secret_dict) == 1:
                 # If there's only one key, return its value
